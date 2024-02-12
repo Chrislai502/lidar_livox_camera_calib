@@ -199,8 +199,11 @@ Calibration::Calibration(const std::string &image_file,
       pcl::PointCloud<pcl::PointXYZI>::Ptr(new pcl::PointCloud<pcl::PointXYZI>);
   ROS_INFO_STREAM("Loading point cloud from pcd file.");
   if (!pcl::io::loadPCDFile(pcd_file, *raw_lidar_cloud_)) {
-    // down_sampling_voxel(*raw_lidar_cloud_, 0.02);
-    std::string msg = "Sucessfully load pcd, pointcloud size: " +
+    std::string msg = "Sucessfully load pcd, initial pointcloud size: " +
+                      std::to_string(raw_lidar_cloud_->size());
+    ROS_INFO_STREAM(msg.c_str());
+    down_sampling_voxel(*raw_lidar_cloud_, 0.02);
+    msg = "Downsampled, current pointcloud size: " +
                       std::to_string(raw_lidar_cloud_->size());
     ROS_INFO_STREAM(msg.c_str());
   } else {
@@ -354,6 +357,7 @@ void Calibration::edgeDetector(
     const int &canny_threshold, const int &edge_threshold,
     const cv::Mat &src_img, cv::Mat &edge_img,
     pcl::PointCloud<pcl::PointXYZ>::Ptr &edge_cloud) {
+
   int gaussian_size = 5;
   cv::GaussianBlur(src_img, src_img, cv::Size(gaussian_size, gaussian_size), 0,
                    0);

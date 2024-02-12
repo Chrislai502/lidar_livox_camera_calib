@@ -193,16 +193,22 @@ int main(int argc, char **argv) {
   ros::NodeHandle nh;
   ros::Rate loop_rate(0.1);
 
+  // Declaring ROS Parameters
   nh.param<string>("common/image_file", image_file, "");
   nh.param<string>("common/pcd_file", pcd_file, "");
   nh.param<string>("common/result_file", result_file, "");
-  std::cout << "pcd_file path:" << pcd_file << std::endl;
+  // std::cout << "pcd_file path:" << pcd_file << std::endl;
+  ROS_INFO_STREAM("pcd_file path:" << pcd_file);
+  ROS_INFO_STREAM("image_file path:" << image_file);
+  ROS_INFO_STREAM("result_file path:" << result_file);
+
   nh.param<vector<double>>("camera/camera_matrix", camera_matrix,
                            vector<double>());
   nh.param<vector<double>>("camera/dist_coeffs", dist_coeffs, vector<double>());
   nh.param<bool>("calib/use_rough_calib", use_rough_calib, false);
   nh.param<string>("calib/calib_config_file", calib_config_file, "");
 
+  // Initializing Calibration Matrices
   Calibration calibra(image_file, pcd_file, calib_config_file);
   calibra.fx_ = camera_matrix[0];
   calibra.cx_ = camera_matrix[2];
@@ -236,7 +242,8 @@ int main(int argc, char **argv) {
             << calibra.init_rotation_matrix_ << std::endl;
   std::cout << "Initial translation:"
             << calibra.init_translation_vector_.transpose() << std::endl;
-  bool use_vpnp = true;
+            
+  bool use_vpnp = true; // use Vector PnP
   Eigen::Vector3d euler = R.eulerAngles(2, 1, 0);
   calib_params[0] = euler[0];
   calib_params[1] = euler[1];
@@ -247,8 +254,14 @@ int main(int argc, char **argv) {
   sensor_msgs::PointCloud2 pub_cloud;
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr rgb_cloud(
       new pcl::PointCloud<pcl::PointXYZRGB>);
+
+  ROS_INFO_STREAM("Coloring cloud!");
+
+  // TODO Check all the params going into this function
   calibra.colorCloud(calib_params, 5, calibra.image_, calibra.raw_lidar_cloud_,
                      rgb_cloud);
+
+  ROS_INFO_STREAM("Cloud to ROS Message prepare!");
   pcl::toROSMsg(*rgb_cloud, pub_cloud);
   pub_cloud.header.frame_id = "livox";
   calibra.init_rgb_cloud_pub_.publish(pub_cloud);
@@ -258,8 +271,11 @@ int main(int argc, char **argv) {
   cv::waitKey(1000);
 
   if (use_rough_calib) {
-    roughCalib(calibra, calib_params, DEG2RAD(0.1), 50);
+    ROS_INFO_STREAM("Doing Rough Calibration!");
+    roughCalib(calibra, calib_params, DEG2RAD(0.1), 50); // Maximum Iterations for Rough Calibration
   }
+
+  ROS_INFO_STREAM("Done Rough Calibration, Doing projection!");
   cv::Mat test_img = calibra.getProjectionImg(calib_params);
   cv::imshow("After rough extrinsic", test_img);
   cv::waitKey(1000);
@@ -270,7 +286,7 @@ int main(int argc, char **argv) {
   int dis_threshold = 30;
   bool opt_flag = true;
 
-  // Iteratively reducve the matching distance threshold
+  // Iteratively reduce the matching distance threshold
   for (dis_threshold = 30; dis_threshold > 10; dis_threshold -= 1) {
     // For each distance, do twice optimization
     for (int cnt = 0; cnt < 2; cnt++) {
@@ -373,12 +389,33 @@ int main(int argc, char **argv) {
   R = Eigen::AngleAxisd(calib_params[0], Eigen::Vector3d::UnitZ()) *
       Eigen::AngleAxisd(calib_params[1], Eigen::Vector3d::UnitY()) *
       Eigen::AngleAxisd(calib_params[2], Eigen::Vector3d::UnitX());
+  
+  // After the calibration and optimization process
+  // Log the final rotation matrix and translation vector
+  ROS_INFO_STREAM("Final Rotation Matrix:\n" << R);
+  ROS_INFO_STREAM("Final Translation Vector:\n" << T.transpose());
+
+  // Writing final results to the output file
   std::ofstream outfile(result_file);
-  for (int i = 0; i < 3; i++) {
-    outfile << R(i, 0) << "," << R(i, 1) << "," << R(i, 2) << "," << T[i]
-            << std::endl;
+
+  // Check if the file exists and open it (this will overwrite the existing file)
+  outfile.open(result_file.c_str(), std::ofstream::out | std::ofstream::trunc);
+
+  if (outfile.is_open()){
+
+    std::cout << "The file is open" << std::endl;
+
+    //Write the rotation matrix and translation vector to the file
+    for (int i = 0; i < 3; i++) {
+      outfile << R(i, 0) << "," << R(i, 1) << "," << R(i, 2) << "," << T[i]
+              << std::endl;
+    }
+    outfile << 0 << "," << 0 << "," << 0 << "," << 1 << std::endl;
+    outfile.close(); // Close the file after writing
+  } else {
+    ROS_ERROR_STREAM("Unable to open file: " << result_file);
   }
-  outfile << 0 << "," << 0 << "," << 0 << "," << 1 << std::endl;
+  
   cv::Mat opt_img = calibra.getProjectionImg(calib_params);
   cv::imshow("Optimization result", opt_img);
   cv::imwrite("/home/ycj/data/calib/opt.png", opt_img);
@@ -388,8 +425,7 @@ int main(int argc, char **argv) {
   Eigen::Matrix3d adjust_rotation;
   adjust_rotation = init_rotation.inverse() * R;
   Eigen::Vector3d adjust_euler = adjust_rotation.eulerAngles(2, 1, 0);
-  // outfile << RAD2DEG(adjust_euler[0]) << "," << RAD2DEG(adjust_euler[1]) <<
-  // ","
+  // outfile << RAD2DEG(adjust_euler[0]) << "," << RAD2DEG(adjust_euler[1]) << ","
   //         << RAD2DEG(adjust_euler[2]) << "," << 0 << "," << 0 << "," << 0
   //         << std::endl;
   while (ros::ok()) {
