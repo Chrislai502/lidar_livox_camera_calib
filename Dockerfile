@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     libpcl-dev \
     libopencv-dev \
     ros-noetic-rviz \
+    ros-noetic-backward-ros \
     && rm -rf /var/lib/apt/lists/*
 
 # bootstrap rosdep

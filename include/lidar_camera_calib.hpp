@@ -282,27 +282,106 @@ bool Calibration::loadCalibConfig(const std::string &config_file) {
   return true;
 };
 
-// Color the point cloud by rgb image using given extrinsic
+// Define the Calibration class method colorCloud
+// This method colors the point cloud based on the RGB image and given extrinsic parameters
 void Calibration::colorCloud(
-    const Vector6d &extrinsic_params, const int density,
-    const cv::Mat &input_image,
-    const pcl::PointCloud<pcl::PointXYZI>::Ptr &lidar_cloud,
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr &color_cloud) {
-  cv::Mat rgb_img;
+    const Vector6d &extrinsic_params, // Extrinsic parameters for transformation
+    const int density,                // Sampling density for processing the lidar points
+    const cv::Mat &input_image,       // Input image in cv::Mat format
+    const pcl::PointCloud<pcl::PointXYZI>::Ptr &lidar_cloud, // Input lidar cloud (intensity-based)
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr &color_cloud) {  // Output colored point cloud
+ 
+  cv::Mat rgb_img; // Container for RGB Image
+
+  // Check the type of the input image and convert to RGB if necessary
   if (input_image.type() == CV_8UC3) {
     rgb_img = input_image;
   } else if (input_image.type() == CV_8UC1) {
     cv::cvtColor(input_image, rgb_img, cv::COLOR_GRAY2BGR);
   }
-  std::vector<cv::Point3f> pts_3d;
-  for (size_t i = 0; i < lidar_cloud->size(); i += density) {
-    pcl::PointXYZI point = lidar_cloud->points[i];
+
+  std::vector<cv::Point3f> pts_3d; // Container for 3D points from the lidar cloud
+  // std::vector<float> intensities_lst; // For histogram Generation
+  // std::vector<float> depth_lst; // For depth histogram Generation
+
+  // Iterate through the lidar points with a step size defined by 'density'
+  for (size_t i = 0; i < lidar_cloud->size(); i += density) { 
+
+    pcl::PointXYZI point = lidar_cloud->points[i]; // Get the current point
+
+    if (i % 10000 == 0 || i % 9990 == 0){
+      ROS_INFO_STREAM("Point Sample:" << point.x << ", " << point.y << ", " << point.z);
+    }
+
+    // Calculate the depth of the point from the origin
     float depth = sqrt(pow(point.x, 2) + pow(point.y, 2) + pow(point.z, 2));
-    if (depth > 2 && depth < 50 &&
-        point.intensity >= color_intensity_threshold_) {
-      pts_3d.emplace_back(cv::Point3f(point.x, point.y, point.z));
+    
+    // // For histogram Generation
+    // if (i%3 == 0){
+    //   depth_lst.push_back(depth);
+    //   intensities_lst.push_back(point.intensity);
+    // }
+
+    // Filter points based on depth and intensity threshold
+    if (depth > 2 && depth < 150 && point.intensity >= color_intensity_threshold_) {
+      
+      // Add the point to the vector if it passes the filters
+      pts_3d.emplace_back(cv::Point3f(point.x, point.y, point.z)); // Builds the object directly in place
     }
   }
+
+  // DEBUG HISTOGRAMS
+  // Sort values
+  // std::sort(depth_lst.begin(), depth_lst.end());
+  // std::sort(intensities_lst.begin(), intensities_lst.end());
+
+  // // Have another vector with the top and bottom 10th percentile removed
+  // size_t lowerIndex = size_t(0.1 * intensities.size());
+  // size_t upperIndex = size_t(0.9 * intensities.size());
+
+  // std::vector<float> filteredIntensities(intensities_lst.begin() + lowerIndex, intensities_lst.begin() + upperIndex);
+  // std::vector<float> filteredDepth(depth_lst.begin() + lowerIndex, depth_lst.begin() + upperIndex);
+
+  // // Step 2: Calculate histogram
+  // int histSize[] = {50}; // Bins count needs to be an array for calcHist
+  // float hranges[] = {0, 256}; // Range should cover 0 to 255, not 0 to histSize
+  // const float* ranges[] = {hranges}; // Pointer to the ranges array
+  // int channels[] = {0}; // Specify that we're examining the first channel
+
+  // cv::Mat hist;
+  // cv::Mat intensities_mat(intensities_lst.size(), 1, CV_32F, intensities_lst.data());
+  // cv::calcHist(&intensities_mat, 1, channels, cv::Mat(), // no mask
+  //             hist, 1, histSize, ranges, true, false);
+
+  // // Step 3: Plot and save histogram
+  // int hist_w = 512, hist_h = 400;
+  // int bin_w = cvRound((double)hist_w / histSize[0]);
+
+  // cv::Mat histImage(hist_h, hist_w, CV_8UC3, cv::Scalar(0, 0, 0));
+  // cv::normalize(hist, hist, 0, histImage.rows, cv::NORM_MINMAX);
+
+  // for (int i = 1; i < histSize[0]; i++) {
+  //     cv::line(histImage, cv::Point(bin_w * (i - 1), hist_h - cvRound(hist.at<float>(i - 1))),
+  //             cv::Point(bin_w * (i), hist_h - cvRound(hist.at<float>(i))),
+  //             cv::Scalar(255, 0, 0), 2, 8, 0);
+  // }
+
+  // cv::imwrite("/home/chris/testing/lidar_cam_calib/scene_based/livox_camera_calib/src/livox_camera_calib/output/intensity_histogram.png", histImage); // Save the histogram image
+  
+  // // Plot and save for depth
+  // cv::calcHist(&intensities_lst, 1, 0, cv::Mat(), hist, 1, &histSize, &histRange, true, false);
+  // cv::normalize(hist, hist, 0, histImage.rows, cv::NORM_MINMAX, -1, cv::Mat());
+
+  // for(int i = 1; i < histSize; i++) {
+  //     cv::line(histImage, cv::Point(bin_w*(i-1), hist_h - cvRound(hist.at<float>(i-1))),
+  //               cv::Point(bin_w*(i), hist_h - cvRound(hist.at<float>(i))),
+  //               cv::Scalar(255, 0, 0), 2, 8, 0);
+  // }
+  // cv::imwrite("/home/chris/testing/lidar_cam_calib/scene_based/livox_camera_calib/src/livox_camera_calib/output/depth_histogram.png", histImage); // Save the histogram image
+  
+  // DEBUG HISTOGRAMS
+  
+
   Eigen::AngleAxisd rotation_vector3;
   rotation_vector3 =
       Eigen::AngleAxisd(extrinsic_params[0], Eigen::Vector3d::UnitZ()) *
@@ -320,8 +399,39 @@ void Calibration::colorCloud(
   cv::Mat t_vec = (cv::Mat_<double>(3, 1) << extrinsic_params[3],
                    extrinsic_params[4], extrinsic_params[5]);
   std::vector<cv::Point2f> pts_2d;
-  cv::projectPoints(pts_3d, r_vec, t_vec, camera_matrix, distortion_coeff,
-                    pts_2d);
+
+  // TODO Bug is here
+  // Right before the cv::projectPoints call
+  ROS_INFO_STREAM("Logging matrix and vector details for debugging:");
+
+  // Check if pts_3d is empty
+  if (pts_3d.empty()) {
+      ROS_INFO_STREAM("pts_3d is empty. No 3D points meet the criteria for projection.");
+  } else {
+      ROS_INFO_STREAM("Number of 3D points to project: " << pts_3d.size());
+  }
+
+  // Log camera_matrix and distortion_coeff sizes and key values
+  ROS_INFO_STREAM("camera_matrix: " << "\n" << camera_matrix);
+  ROS_INFO_STREAM("distortion_coeff: " << "\n" << distortion_coeff);
+
+  // Log r_vec and t_vec
+  ROS_INFO_STREAM("r_vec (rotation vector): " << "\n" << r_vec);
+  ROS_INFO_STREAM("t_vec (translation vector): " << "\n" << t_vec);
+
+  // Since ROS_INFO_STREAM does not directly support OpenCV's cv::Mat type logging in a stream,
+  // you might need to convert cv::Mat data to a string, but be mindful this can clutter your log if the matrix is large.
+  // For demonstration purposes, let's log the dimensions and type of camera_matrix:
+  ROS_INFO_STREAM("camera_matrix rows: " << camera_matrix.rows << ", cols: " << camera_matrix.cols << ", type: " << camera_matrix.type());
+
+  // Similarly for distortion_coeff, r_vec, and t_vec:
+  ROS_INFO_STREAM("distortion_coeff size: " << distortion_coeff.total() << ", type: " << distortion_coeff.type());
+  ROS_INFO_STREAM("r_vec size: " << r_vec.total() << ", type: " << r_vec.type());
+  ROS_INFO_STREAM("t_vec size: " << t_vec.total() << ", type: " << t_vec.type());
+  // DEBUG
+
+  cv::projectPoints(pts_3d, r_vec, t_vec, camera_matrix, distortion_coeff, pts_2d);
+  
   int image_rows = rgb_img.rows;
   int image_cols = rgb_img.cols;
   color_cloud = pcl::PointCloud<pcl::PointXYZRGB>::Ptr(

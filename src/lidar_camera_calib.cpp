@@ -258,6 +258,33 @@ int main(int argc, char **argv) {
   ROS_INFO_STREAM("Coloring cloud!");
 
   // TODO Check all the params going into this function
+  // Example of logging image and point cloud details
+  ROS_INFO_STREAM("Calling colorCloud with parameters:");
+  ROS_INFO_STREAM("Calib params: " <<
+                  "euler_angle_x=" << calib_params[0] << 
+                  ", euler_angle_y=" << calib_params[1] << 
+                  ", euler_angle_z=" << calib_params[2] << 
+                  ", translation_x=" << calib_params[3] << 
+                  ", translation_y=" << calib_params[4] << 
+                  ", translation_z=" << calib_params[5]);
+  ROS_INFO_STREAM("Image dimensions: width=" << calibra.image_.cols << ", height=" << calibra.image_.rows);
+  ROS_INFO_STREAM("Raw LiDAR cloud: number of points=" << calibra.raw_lidar_cloud_->size());
+
+  // if (!calibra.image_.empty()) {
+  //   // Create a window for display.
+  //   cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE); 
+    
+  //   // Show our image inside it.
+  //   cv::imshow("Display window", calibra.image_);               
+    
+  //   // Wait for a keystroke in the window
+  //   cv::waitKey(0); 
+  // } else {
+  //     std::cerr << "No image data \n";
+  // }
+
+  //DEBUG
+
   calibra.colorCloud(calib_params, 5, calibra.image_, calibra.raw_lidar_cloud_,
                      rgb_cloud);
 

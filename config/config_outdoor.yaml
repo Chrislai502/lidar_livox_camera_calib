@@ -51,4 +51,4 @@ Edge.max_dis_threshold: 0.06
 
 # Params for color point clouds
 Color.dense: 1
-Color.intensity_threshold: 10
+Color.intensity_threshold: 0.05 #10 Original value 10, luminar is normalized 0~1 so threshold much lower
